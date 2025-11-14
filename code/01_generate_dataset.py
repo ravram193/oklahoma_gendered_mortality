@@ -76,8 +76,8 @@ def clean_dataframe(df, sex):
 if __name__ == "__main__":
 
     # Upload raw data (taken from https://www.health.state.ok.us/stats/Vital_Statistics/Death/Final/Statistics21Trend.shtml)
-    deaths_male = pd.read_csv('../data/oklahoma_deaths_male.csv')
-    deaths_female = pd.read_csv('../data/oklahoma_deaths_female.csv')
+    deaths_male = pd.read_csv('../data/input/oklahoma_deaths_male.csv')
+    deaths_female = pd.read_csv('../data/input/oklahoma_deaths_female.csv')
 
     # Cleaning raw datasets for male and female deaths
     deaths_male_cleaned = clean_dataframe(deaths_male, "Male")
@@ -87,4 +87,4 @@ if __name__ == "__main__":
     all_deaths_ok = pd.concat([deaths_male_cleaned,deaths_female_cleaned])
 
     # Saving
-    all_deaths_ok.to_csv("../data/all-deaths_by-county-sex-race_oklahoma_2010-2023.csv", index=False)
+    all_deaths_ok.to_csv("../data/output/all-deaths_by-county-sex-race_oklahoma_2010-2023.csv", index=False)
