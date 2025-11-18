@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-def clean_dataframe(df, sex):
+def clean_deaths_dataframe(df, sex):
 
     """Cleans the raw Oklahoma deaths DataFrame for a given sex.
     
@@ -73,18 +73,244 @@ def clean_dataframe(df, sex):
 
     return tidy
 
+def clean_birth_rate_dataframe(df, demo_col, demo_list):
+
+    """Cleans a raw Oklahoma births dataset, creating sub-divisions for year, county, and a third specified demographic category.
+    
+    Args: 
+    - df (pd.DataFrame): Raw DataFrame to be cleaned. Must include birth data by year, county, and an additional demographic variable.
+    - demo_col (str): Name of a new column for the additional demographic category included in the dataset.
+    - demo_list (list): List of categories for the specified demographic group.
+
+    Returns:       
+    - tidy (pd.DataFrame): Cleaned and tidy DataFrame with columns: year, county, `demo_col`, birth, population, and birth rate.
+
+    """
+
+    # Rename raw columns
+    df = df.rename(columns={
+        df.columns[0]: "col0", # Search Characteristic
+        df.columns[1]: "col1", # Values Selected
+        df.columns[2]: "col2", # Unnamed: 2 (Births)
+        df.columns[3]: "col3", # Unnamed: 3 (Population)
+        df.columns[4]: "col4"  # Unnamed: 4 (Birth Rate)
+    })
+
+    # Extract YEAR (this must happen BEFORE filtering)
+    df["year"] = df["col0"].astype(str).str.extract(r"(\d{4})")
+    df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
+    df["year"] = df["year"].ffill() # Now year should populate for all rows
+
+    # Identify COUNTY rows
+    def is_county(x):
+        if pd.isna(x): 
+            return False
+        x = str(x).strip()
+        if x in demo_list:
+            return False
+        if x in ["County of Residence", "Search Characteristic", "Values Selected"]:
+            return False
+        if x.startswith("Year"):
+            return False
+        return True
+
+    df["county_raw"] = df["col0"].where(df["col0"].apply(is_county))
+    df["county"] = df["county_raw"].ffill()
+
+    # Extract values for each demographic sub-group
+    df[demo_col] = df["col1"].where(df["col1"].isin(demo_list))
+
+    # Extract births, population, and birth rate
+    df["births"] = df["col2"].replace(".", np.nan)
+    df["births"] = pd.to_numeric(df["births"], errors="coerce")
+    df["births"] = df["births"].fillna(0)
+    df["population"] = df["col3"].replace(".", np.nan)
+    df["population"] = pd.to_numeric(df["population"], errors="coerce")
+    df["population"] = df["population"].fillna(0)
+    df["birth_rate"] = df["col4"].replace(".", np.nan)
+    df["birth_rate"] = pd.to_numeric(df["birth_rate"], errors="coerce")
+    df["birth_rate"] = df["birth_rate"].fillna(0)
+
+    # Keep only rows related to the specified demographic group
+    df = df[df[demo_col].isin(demo_list)]
+
+    # Final tidy format
+    tidy = df[["year", "county", demo_col, "births", "population", "birth_rate"]].reset_index(drop=True)
+
+    return tidy
+
+def clean_live_births_dataframe(df, demo_col, demo_list):
+
+    """Cleans a raw Oklahoma births dataset, creating sub-divisions for year, county, and a third specified demographic category.
+    
+    Args: 
+    - df (pd.DataFrame): Raw DataFrame to be cleaned. Must include birth data by year, county, and an additional demographic variable.
+    - demo_col (str): Name of a new column for the additional demographic category included in the dataset.
+    - demo_list (list): List of categories for the specified demographic group.
+
+    Returns:       
+    - tidy (pd.DataFrame): Cleaned and tidy DataFrame with columns: year, county, `demo_col`, birth, population, and birth rate.
+
+    """
+
+    # Rename raw columns
+    df = df.rename(columns={
+        df.columns[0]: "col0", # Search Characteristic
+        df.columns[1]: "col1", # Values Selected
+        df.columns[2]: "col2", # Unnamed: 2 (Live Births)
+        df.columns[3]: "col3", # Unnamed: 2 (% Live Births)
+    })
+
+    # Extract YEAR (this must happen BEFORE filtering)
+    df["year"] = df["col0"].astype(str).str.extract(r"(\d{4})")
+    df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
+    df["year"] = df["year"].ffill() # Now year should populate for all rows
+
+    # Extract values for each demographic sub-group
+    df[demo_col] = df["col1"].where(df["col1"].isin(demo_list))
+
+    # Extract births, population, and birth rate
+    df["live_births"] = df["col2"].replace(".", np.nan)
+    df["live_births"] = pd.to_numeric(df["live_births"], errors="coerce")
+    df["live_births"] = df["live_births"].fillna(0)
+    df["percent_live_births"] = df["col3"].replace(".", np.nan)
+    df["percent_live_births"] = pd.to_numeric(df["percent_live_births"], errors="coerce")
+    df["percent_live_births"] = df["percent_live_births"].fillna(0)
+
+    # Keep only rows related to the specified demographic group
+    df = df[df[demo_col].isin(demo_list)]
+
+    # Final tidy format
+    tidy = df[["year", "county", demo_col, "live_births", "percent_live_births"]].reset_index(drop=True)
+
+    return tidy
+
+
+def clean_live_births_dataframe(df, demo_col, demo_list):
+
+    """Cleans a raw Oklahoma births dataset, creating sub-divisions for year and a specified demographic category.
+    
+    Args: 
+    - df (pd.DataFrame): Raw DataFrame to be cleaned. Must include birth data by year, live births, % live births, and an additional demographic variable.
+    - demo_col (str): Name of a new column for the additional demographic category included in the dataset.
+    - demo_list (list): List of categories for the specified demographic group.
+
+    Returns:       
+    - tidy (pd.DataFrame): Cleaned and tidy DataFrame with columns: year, `demo_col`, live births, and % live births.
+
+    """
+
+    # Rename raw columns
+    df = df.rename(columns={
+        df.columns[0]: "col0", # Search Characteristic
+        df.columns[1]: "col1", # Values Selected (Live Births)
+        df.columns[2]: "col2", # Unnamed: 2 (% Live Births)
+    })
+
+    # Extract YEAR (this must happen BEFORE filtering)
+    df["year"] = df["col0"].astype(str).str.extract(r"(\d{4})")
+    df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
+    df["year"] = df["year"].ffill() # Now year should populate for all rows
+
+    # Extract values for each demographic sub-group
+    df[demo_col] = df["col0"].where(df["col0"].isin(demo_list))
+
+    # Extract births, population, and birth rate
+    df["live_births"] = df["col1"].replace(".", np.nan)
+    df["live_births"] = pd.to_numeric(df["live_births"], errors="coerce")
+    df["live_births"] = df["live_births"].fillna(0)
+    df["percent_live_births"] = df["col2"].replace(".", np.nan)
+    df["percent_live_births"] = pd.to_numeric(df["percent_live_births"], errors="coerce")
+    df["percent_live_births"] = df["percent_live_births"].fillna(0)
+
+    # Keep only rows related to the specified demographic group
+    df = df[df[demo_col].isin(demo_list)]
+
+    # Final tidy format
+    tidy = df[["year", demo_col, "live_births", "percent_live_births"]].reset_index(drop=True)
+
+    return tidy
+
 if __name__ == "__main__":
 
-    # Upload raw data (taken from https://www.health.state.ok.us/stats/Vital_Statistics/Death/Final/Statistics21Trend.shtml)
-    deaths_male = pd.read_csv('../data/input/oklahoma_deaths_male.csv')
-    deaths_female = pd.read_csv('../data/input/oklahoma_deaths_female.csv')
+    # # Upload raw data (taken from https://www.health.state.ok.us/stats/Vital_Statistics/Death/Final/Statistics21Trend.shtml)
+    # deaths_male = pd.read_csv('../data/input/oklahoma_deaths_male.csv')
+    # deaths_female = pd.read_csv('../data/input/oklahoma_deaths_female.csv')
 
-    # Cleaning raw datasets for male and female deaths
-    deaths_male_cleaned = clean_dataframe(deaths_male, "Male")
-    deaths_female_cleaned = clean_dataframe(deaths_female, "Female")
+    # # Cleaning raw datasets for male and female deaths
+    # deaths_male_cleaned = clean_deaths_dataframe(deaths_male, "Male")
+    # deaths_female_cleaned = clean_deaths_dataframe(deaths_female, "Female")
 
-    # Merging into one DataFrame
-    all_deaths_ok = pd.concat([deaths_male_cleaned,deaths_female_cleaned])
+    # # Merging into one DataFrame
+    # all_deaths_ok = pd.concat([deaths_male_cleaned,deaths_female_cleaned])
+
+    # # Saving
+    # all_deaths_ok.to_csv("../data/output/all-deaths_by-county-sex-race_oklahoma_2010-2023.csv", index=False)
+
+    # BIRTHS BY RACE
+
+    # Upload raw data (taken from https://www.health.state.ok.us/stats/Vital_Statistics/Birth/Final/Statistics_2021upTrend.shtml)
+    births_by_race = pd.read_csv('../data/input/oklahoma_births-by-county_by-race_2010-2024.csv')
+
+    # Race list for classification
+    race_list = [
+        "White",
+        "Black or African American",
+        "American Indian or Alaska Native",
+        "Asian",
+        "Native Hawaiian or Other Pacific Islander",
+        "Other",
+        "Unknown",
+        "More than one race"
+    ]
+
+    # Cleaning raw dataset for births by race
+    births_by_race_cleaned = clean_birth_rate_dataframe(births_by_race, "race", race_list)
 
     # Saving
-    all_deaths_ok.to_csv("../data/output/all-deaths_by-county-sex-race_oklahoma_2010-2023.csv", index=False)
+    births_by_race_cleaned.to_csv("../data/output/oklahoma_births-by-county_by-race_2010-2024.csv", index=False)
+
+    # BIRTHS BY AGE
+
+    # Upload raw data
+    births_by_age = pd.read_csv('../data/input/oklahoma_births_by-county_by-age_2010-2024.csv')
+
+    # Age list for classification
+    age_list = [
+        "10-14 years",
+        "15-17 years",
+        "18-19 years",
+        "20-24 years",
+        "25-29 years",
+        "30-34 years",
+        "35-39 years",
+        "40-44 years",
+        "45-54 years",
+        "Unknown Age"
+    ]
+
+    # Cleaning raw dataset for births by race
+    births_by_age_cleaned = clean_birth_rate_dataframe(births_by_age, "age", age_list)
+
+    # Saving
+    births_by_age_cleaned.to_csv("../data/output/oklahoma_births-by-county_by-age_2010-2024.csv", index=False)
+
+    # LIVE BIRTHS BY GESTATIONAL AGE
+
+    births_by_gestational_age = pd.read_csv('../data/input/oklahoma_birth-weight_2010-2024.csv')
+
+    gestation_age_list = [
+        '<32 weeks', 
+        '32-36 weeks', 
+        '37-39 weeks', 
+        '40-41 weeks', 
+        '42+ weeks', 
+        'Unknown'
+        ]
+    
+    births_by_gestational_age_cleaned = clean_live_births_dataframe(births_by_gestational_age, 'gestation_age', gestation_age_list)
+
+    # Saving
+    births_by_gestational_age_cleaned.to_csv("../data/output/oklahoma_birth-weight_2010-2024.csv", index=False)
+
+    
