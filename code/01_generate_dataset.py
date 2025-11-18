@@ -73,7 +73,7 @@ def clean_deaths_dataframe(df, sex):
 
     return tidy
 
-def clean_births_dataframe(df, demo_col, demo_list):
+def clean_birth_rate_dataframe(df, demo_col, demo_list):
 
     """Cleans a raw Oklahoma births dataset, creating sub-divisions for year, county, and a third specified demographic category.
     
@@ -139,6 +139,98 @@ def clean_births_dataframe(df, demo_col, demo_list):
 
     return tidy
 
+def clean_live_births_dataframe(df, demo_col, demo_list):
+
+    """Cleans a raw Oklahoma births dataset, creating sub-divisions for year, county, and a third specified demographic category.
+    
+    Args: 
+    - df (pd.DataFrame): Raw DataFrame to be cleaned. Must include birth data by year, county, and an additional demographic variable.
+    - demo_col (str): Name of a new column for the additional demographic category included in the dataset.
+    - demo_list (list): List of categories for the specified demographic group.
+
+    Returns:       
+    - tidy (pd.DataFrame): Cleaned and tidy DataFrame with columns: year, county, `demo_col`, birth, population, and birth rate.
+
+    """
+
+    # Rename raw columns
+    df = df.rename(columns={
+        df.columns[0]: "col0", # Search Characteristic
+        df.columns[1]: "col1", # Values Selected
+        df.columns[2]: "col2", # Unnamed: 2 (Live Births)
+        df.columns[3]: "col3", # Unnamed: 2 (% Live Births)
+    })
+
+    # Extract YEAR (this must happen BEFORE filtering)
+    df["year"] = df["col0"].astype(str).str.extract(r"(\d{4})")
+    df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
+    df["year"] = df["year"].ffill() # Now year should populate for all rows
+
+    # Extract values for each demographic sub-group
+    df[demo_col] = df["col1"].where(df["col1"].isin(demo_list))
+
+    # Extract births, population, and birth rate
+    df["live_births"] = df["col2"].replace(".", np.nan)
+    df["live_births"] = pd.to_numeric(df["live_births"], errors="coerce")
+    df["live_births"] = df["live_births"].fillna(0)
+    df["percent_live_births"] = df["col3"].replace(".", np.nan)
+    df["percent_live_births"] = pd.to_numeric(df["percent_live_births"], errors="coerce")
+    df["percent_live_births"] = df["percent_live_births"].fillna(0)
+
+    # Keep only rows related to the specified demographic group
+    df = df[df[demo_col].isin(demo_list)]
+
+    # Final tidy format
+    tidy = df[["year", "county", demo_col, "live_births", "percent_live_births"]].reset_index(drop=True)
+
+    return tidy
+
+
+def clean_live_births_dataframe(df, demo_col, demo_list):
+
+    """Cleans a raw Oklahoma births dataset, creating sub-divisions for year and a specified demographic category.
+    
+    Args: 
+    - df (pd.DataFrame): Raw DataFrame to be cleaned. Must include birth data by year, live births, % live births, and an additional demographic variable.
+    - demo_col (str): Name of a new column for the additional demographic category included in the dataset.
+    - demo_list (list): List of categories for the specified demographic group.
+
+    Returns:       
+    - tidy (pd.DataFrame): Cleaned and tidy DataFrame with columns: year, `demo_col`, live births, and % live births.
+
+    """
+
+    # Rename raw columns
+    df = df.rename(columns={
+        df.columns[0]: "col0", # Search Characteristic
+        df.columns[1]: "col1", # Values Selected (Live Births)
+        df.columns[2]: "col2", # Unnamed: 2 (% Live Births)
+    })
+
+    # Extract YEAR (this must happen BEFORE filtering)
+    df["year"] = df["col0"].astype(str).str.extract(r"(\d{4})")
+    df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
+    df["year"] = df["year"].ffill() # Now year should populate for all rows
+
+    # Extract values for each demographic sub-group
+    df[demo_col] = df["col0"].where(df["col0"].isin(demo_list))
+
+    # Extract births, population, and birth rate
+    df["live_births"] = df["col1"].replace(".", np.nan)
+    df["live_births"] = pd.to_numeric(df["live_births"], errors="coerce")
+    df["live_births"] = df["live_births"].fillna(0)
+    df["percent_live_births"] = df["col2"].replace(".", np.nan)
+    df["percent_live_births"] = pd.to_numeric(df["percent_live_births"], errors="coerce")
+    df["percent_live_births"] = df["percent_live_births"].fillna(0)
+
+    # Keep only rows related to the specified demographic group
+    df = df[df[demo_col].isin(demo_list)]
+
+    # Final tidy format
+    tidy = df[["year", demo_col, "live_births", "percent_live_births"]].reset_index(drop=True)
+
+    return tidy
+
 if __name__ == "__main__":
 
     # # Upload raw data (taken from https://www.health.state.ok.us/stats/Vital_Statistics/Death/Final/Statistics21Trend.shtml)
@@ -173,7 +265,7 @@ if __name__ == "__main__":
     ]
 
     # Cleaning raw dataset for births by race
-    births_by_race_cleaned = clean_births_dataframe(births_by_race, "race", race_list)
+    births_by_race_cleaned = clean_birth_rate_dataframe(births_by_race, "race", race_list)
 
     # Saving
     births_by_race_cleaned.to_csv("../data/output/oklahoma_births-by-county_by-race_2010-2024.csv", index=False)
@@ -198,7 +290,27 @@ if __name__ == "__main__":
     ]
 
     # Cleaning raw dataset for births by race
-    births_by_age_cleaned = clean_births_dataframe(births_by_age, "age", age_list)
+    births_by_age_cleaned = clean_birth_rate_dataframe(births_by_age, "age", age_list)
 
     # Saving
     births_by_age_cleaned.to_csv("../data/output/oklahoma_births-by-county_by-age_2010-2024.csv", index=False)
+
+    # LIVE BIRTHS BY GESTATIONAL AGE
+
+    births_by_gestational_age = pd.read_csv('../data/input/oklahoma_birth-weight_2010-2024.csv')
+
+    gestation_age_list = [
+        '<32 weeks', 
+        '32-36 weeks', 
+        '37-39 weeks', 
+        '40-41 weeks', 
+        '42+ weeks', 
+        'Unknown'
+        ]
+    
+    births_by_gestational_age_cleaned = clean_live_births_dataframe(births_by_gestational_age, 'gestation_age', gestation_age_list)
+
+    # Saving
+    births_by_gestational_age_cleaned.to_csv("../data/output/oklahoma_birth-weight_2010-2024.csv", index=False)
+
+    
