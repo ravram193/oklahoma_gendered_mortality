@@ -73,28 +73,32 @@ def clean_deaths_dataframe(df, sex):
 
     return tidy
 
-def clean_birth_rate_dataframe(df, demo_col, demo_list):
+def clean_birth_rate_dataframe(df, demo_col=None, demo_list=None):
 
     """Cleans a raw Oklahoma births dataset, creating sub-divisions for year, county, and a third specified demographic category.
     
     Args: 
     - df (pd.DataFrame): Raw DataFrame to be cleaned. Must include birth data by year, county, and an additional demographic variable.
-    - demo_col (str): Name of a new column for the additional demographic category included in the dataset.
-    - demo_list (list): List of categories for the specified demographic group.
+    - demo_col (str): Name of a new column for the additional demographic category included in the dataset. (optional)
+    - demo_list (list): List of categories for the specified demographic group. (optional)
 
     Returns:       
     - tidy (pd.DataFrame): Cleaned and tidy DataFrame with columns: year, county, `demo_col`, birth, population, and birth rate.
 
     """
+    rename_dict = {
+            df.columns[0]: "col0", # Search Characteristic
+            df.columns[1]: "col1", # Unnamed: 2 (Births)
+            df.columns[2]: "col2", # Unnamed: 3 (Population)
+            df.columns[3]: "col3",  # Unnamed: 4 (Birth Rate)
+        }
+    
+    # Optional demographic variable
+    if demo_col:
+        rename_dict.update({df.columns[4]: "col4"}) # Values Selected
 
     # Rename raw columns
-    df = df.rename(columns={
-        df.columns[0]: "col0", # Search Characteristic
-        df.columns[1]: "col1", # Values Selected
-        df.columns[2]: "col2", # Unnamed: 2 (Births)
-        df.columns[3]: "col3", # Unnamed: 3 (Population)
-        df.columns[4]: "col4"  # Unnamed: 4 (Birth Rate)
-    })
+    df = df.rename(columns=rename_dict)
 
     # Extract YEAR (this must happen BEFORE filtering)
     df["year"] = df["col0"].astype(str).str.extract(r"(\d{4})")
@@ -106,8 +110,9 @@ def clean_birth_rate_dataframe(df, demo_col, demo_list):
         if pd.isna(x): 
             return False
         x = str(x).strip()
-        if x in demo_list:
-            return False
+        if demo_list:
+            if x in demo_list:
+                return False
         if x in ["County of Residence", "Search Characteristic", "Values Selected"]:
             return False
         if x.startswith("Year"):
@@ -117,25 +122,30 @@ def clean_birth_rate_dataframe(df, demo_col, demo_list):
     df["county_raw"] = df["col0"].where(df["col0"].apply(is_county))
     df["county"] = df["county_raw"].ffill()
 
-    # Extract values for each demographic sub-group
-    df[demo_col] = df["col1"].where(df["col1"].isin(demo_list))
+    if demo_col:
+        # Extract values for each demographic sub-group
+        df[demo_col] = df["col4"].where(df["col4"].isin(demo_list))
 
     # Extract births, population, and birth rate
-    df["births"] = df["col2"].replace(".", np.nan)
+    df["births"] = df["col1"].replace(".", np.nan)
     df["births"] = pd.to_numeric(df["births"], errors="coerce")
     df["births"] = df["births"].fillna(0)
-    df["population"] = df["col3"].replace(".", np.nan)
+    df["population"] = df["col2"].replace(".", np.nan)
     df["population"] = pd.to_numeric(df["population"], errors="coerce")
     df["population"] = df["population"].fillna(0)
-    df["birth_rate"] = df["col4"].replace(".", np.nan)
+    df["birth_rate"] = df["col3"].replace(".", np.nan)
     df["birth_rate"] = pd.to_numeric(df["birth_rate"], errors="coerce")
     df["birth_rate"] = df["birth_rate"].fillna(0)
 
-    # Keep only rows related to the specified demographic group
-    df = df[df[demo_col].isin(demo_list)]
+    if demo_col:
+        # Keep only rows related to the specified demographic group
+        df = df[df[demo_col].isin(demo_list)]
 
     # Final tidy format
-    tidy = df[["year", "county", demo_col, "births", "population", "birth_rate"]].reset_index(drop=True)
+    final_cols = ["year", "county", "births", "population", "birth_rate"]
+    if demo_col:
+        final_cols = final_cols + [demo_col]
+    tidy = df[final_cols].reset_index(drop=True)
 
     return tidy
 
@@ -148,7 +158,7 @@ def clean_live_births_dataframe(df, demo_col, demo_list):
     Returns:       
     - tidy (pd.DataFrame): Cleaned and tidy DataFrame with columns: year, county (if present), `demo_col`, live births, and % live births.
     """
-    
+
     # Rename raw columns
     df = df.rename(columns={
         df.columns[0]: "col0",
@@ -278,38 +288,52 @@ if __name__ == "__main__":
     # Saving
     births_by_age_cleaned.to_csv("../data/output/oklahoma_births-by-county_by-age_2010-2024.csv", index=False)
 
-    # LIVE BIRTHS BY GESTATIONAL AGE
+    # BIRTHS BY RURAL/ METRO
 
-    births_by_gestational_age = pd.read_csv('../data/input/oklahoma_birth-weight_2010-2024.csv')
+    # Upload raw data
+    births_by_metro_micro = pd.read_csv('../data/input/oklahoma_metro-micro_births_by-county_2010-2024.csv')
+    births_by_rural = pd.read_csv('../data/input/oklahoma_rural_births_by-county_2010-2024.csv')
 
-    gestation_age_list = [
-        '<32 weeks', 
-        '32-36 weeks', 
-        '37-39 weeks', 
-        '40-41 weeks', 
-        '42+ weeks', 
-        'Unknown'
-        ]
-    
-    births_by_gestational_age_cleaned = clean_live_births_dataframe(births_by_gestational_age, 'gestation_age', gestation_age_list)
+    # Cleaning raw dataset for births by metro area
+    births_by_metro_micro_cleaned = clean_birth_rate_dataframe(births_by_metro_micro)
+    births_by_rural_cleaned = clean_birth_rate_dataframe(births_by_rural)
 
     # Saving
-    births_by_gestational_age_cleaned.to_csv("../data/output/oklahoma_birth-weight_2010-2024.csv", index=False)
+    births_by_metro_micro_cleaned.to_csv("../data/output/oklahoma_metro-micro_births_by-county_2010-2024.csv", index=False)
+    births_by_rural_cleaned.to_csv("../data/output/oklahoma_rural_births_by-county_2010-2024.csv", index=False)
 
-    # LIVE BIRTHS BY GESTATIONAL AGE
+    # # LIVE BIRTHS BY GESTATIONAL AGE
 
-    births_by_education = pd.read_csv('../data/input/oklahoma_births_by-mothers-edu_2010-2024.csv')
+    # births_by_gestational_age = pd.read_csv('../data/input/oklahoma_birth-weight_2010-2024.csv')
 
-    education_list = [
-        "0 - 8 years",
-        "9 - 11 years",
-        "12 years",
-        "13 - 15 years",
-        ">= 16 years",
-        "UNKNOWN"
-        ]
+    # gestation_age_list = [
+    #     '<32 weeks', 
+    #     '32-36 weeks', 
+    #     '37-39 weeks', 
+    #     '40-41 weeks', 
+    #     '42+ weeks', 
+    #     'Unknown'
+    #     ]
     
-    births_by_education_cleaned = clean_live_births_dataframe(births_by_education, 'education', education_list)
+    # births_by_gestational_age_cleaned = clean_live_births_dataframe(births_by_gestational_age, 'gestation_age', gestation_age_list)
 
-    # Saving
-    births_by_education_cleaned.to_csv("../data/output/oklahoma_births_by-mothers-edu_2010-2024.csv", index=False)
+    # # Saving
+    # births_by_gestational_age_cleaned.to_csv("../data/output/oklahoma_birth-weight_2010-2024.csv", index=False)
+
+    # # LIVE BIRTHS BY GESTATIONAL AGE
+
+    # births_by_education = pd.read_csv('../data/input/oklahoma_births_by-mothers-edu_2010-2024.csv')
+
+    # education_list = [
+    #     "0 - 8 years",
+    #     "9 - 11 years",
+    #     "12 years",
+    #     "13 - 15 years",
+    #     ">= 16 years",
+    #     "UNKNOWN"
+    #     ]
+    
+    # births_by_education_cleaned = clean_live_births_dataframe(births_by_education, 'education', education_list)
+
+    # # Saving
+    # births_by_education_cleaned.to_csv("../data/output/oklahoma_births_by-mothers-edu_2010-2024.csv", index=False)
